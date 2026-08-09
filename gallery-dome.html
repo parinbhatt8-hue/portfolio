@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Gallery Dome</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#08070d;
+    --ink-2:#0f0d18;
+    --panel:#15121f;
+    --panel-2:#1b1729;
+    --brass:#c9a35f;
+    --brass-bright:#e8c988;
+    --violet:#7d6bb0;
+    --text:#efe9db;
+    --text-dim:#a79fc0;
+    --line:rgba(201,163,95,0.22);
+    --danger:#c9705f;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    overflow:hidden;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #app{ position:fixed; inset:0; overflow:hidden; }
+
+  /* ---------- background atmosphere ---------- */
+  #app::before{
+    content:''; position:absolute; inset:0;
+    background:
+      radial-gradient(ellipse at 50% 18%, rgba(125,107,176,0.16), transparent 55%),
+      radial-gradient(ellipse at 50% 100%, rgba(201,163,95,0.10), transparent 60%),
+      linear-gradient(180deg, var(--ink) 0%, var(--ink-2) 55%, #0c0a14 100%);
+    pointer-events:none;
+  }
+  #stars{ position:absolute; inset:0; pointer-events:none; opacity:0.5; }
+
+  /* ---------- header ---------- */
+  #title-block{
+    position:absolute; top:0; left:0; right:0;
+    padding:22px 20px 0;
+    text-align:center;
+    pointer-events:none;
+    z-index:5;
+  }
+  .eyebrow{
+    display:inline-block;
+    font-family:'Inter',sans-serif;
+    font-size:11px;
+    letter-spacing:0.22em;
+    text-transform:uppercase;
+    color:var(--brass);
+    opacity:0.85;
+  }
+  #title-block h1{
+    margin:4px 0 0;
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:clamp(24px,6vw,34px);
+    letter-spacing:0.01em;
+    color:var(--text);
+    text-shadow:0 0 30px rgba(125,107,176,0.35);
+  }
+
+  /* ---------- 3D stage ---------- */
+  #stage{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    perspective:1400px;
+    touch-action:none;
+    cursor:grab;
+  }
+  #stage.dragging{ cursor:grabbing; }
+  #world{
+    position:relative;
+    width:0; height:0;
+    transform-style:preserve-3d;
+    will-change:transform;
+  }
+  .photo{
+    position:absolute;
+    top:50%; left:50%;
+    transform-style:preserve-3d;
+    backface-visibility:hidden;
+    border-radius:6px;
+    background:var(--panel-2);
+    border:2px solid var(--brass);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.4),
+      0 6px 24px rgba(0,0,0,0.55),
+      0 0 18px rgba(201,163,95,0.18);
+    overflow:hidden;
+    transition:box-shadow 0.2s ease;
+  }
+  .photo img{
+    width:100%; height:100%; object-fit:cover; display:block;
+    pointer-events:none;
+    -webkit-user-drag:none;
+  }
+  .photo .remove-btn{
+    position:absolute; top:2px; right:2px;
+    width:20px; height:20px;
+    border-radius:50%;
+    background:rgba(10,8,15,0.75);
+    color:var(--text);
+    border:1px solid var(--line);
+    font-size:12px; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    z-index:2;
+    font-family:'Inter',sans-serif;
+  }
+
+  /* ---------- empty state ---------- */
+  #empty-state{
+    position:absolute; inset:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px;
+    text-align:center;
+    padding:0 30px;
+    z-index:4;
+  }
+  #empty-state.hidden{ display:none; }
+  #empty-state .ring{
+    width:74px; height:74px; border-radius:50%;
+    border:1.5px dashed var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px; color:var(--brass);
+  }
+  #empty-state p{
+    margin:0; max-width:280px;
+    color:var(--text-dim); font-size:13.5px; line-height:1.5;
+  }
+  #empty-state .eyebrow{ pointer-events:auto; }
+
+  /* ---------- upload button ---------- */
+  .btn{
+    font-family:'Inter',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    letter-spacing:0.02em;
+    padding:11px 22px;
+    border-radius:999px;
+    border:1px solid var(--brass);
+    background:linear-gradient(180deg, rgba(201,163,95,0.18), rgba(201,163,95,0.06));
+    color:var(--brass-bright);
+    cursor:pointer;
+    pointer-events:auto;
+  }
+  .btn:active{ transform:scale(0.97); }
+  .btn.secondary{
+    border-color:var(--line);
+    background:transparent;
+    color:var(--text-dim);
+    font-weight:500;
+  }
+
+  /* ---------- control panel ---------- */
+  #panel-toggle{
+    position:absolute; bottom:16px; right:16px;
+    z-index:10;
+    width:46px; height:46px;
+    border-radius:50%;
+    border:1px solid var(--brass);
+    background:var(--panel);
+    color:var(--brass-bright);
+    font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+  }
+  #panel{
+    position:absolute; left:0; right:0; bottom:0;
+    z-index:9;
+    background:linear-gradient(180deg, rgba(21,18,31,0.4), rgba(21,18,31,0.96) 30%);
+    backdrop-filter:blur(10px);
+    border-top:1px solid var(--line);
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+    transform:translateY(0);
+    transition:transform 0.3s ease;
+    max-height:62vh;
+    overflow-y:auto;
+  }
+  #panel.collapsed{ transform:translateY(100%); }
+  .panel-row{
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px; margin-bottom:14px;
+  }
+  .panel-row:last-child{ margin-bottom:0; }
+  .field-label{
+    font-size:11px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--text-dim); white-space:nowrap; width:78px; flex-shrink:0;
+  }
+  .field-value{
+    font-size:11px; color:var(--brass-bright); width:34px; text-align:right; flex-shrink:0;
+  }
+  input[type=range]{
+    flex:1; -webkit-appearance:none; appearance:none;
+    height:3px; border-radius:3px;
+    background:var(--line);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none;
+    width:16px; height:16px; border-radius:50%;
+    background:var(--brass-bright);
+    box-shadow:0 0 8px rgba(201,163,95,0.6);
+    cursor:pointer;
+    border:none;
+  }
+  select#patternSelect{
+    flex:1;
+    font-family:'Inter',sans-serif;
+    background:var(--panel-2);
+    color:var(--text);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 10px;
+    font-size:13px;
+  }
+  .toggle{
+    width:44px; height:24px; border-radius:999px;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    position:relative;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .toggle.on{ background:rgba(201,163,95,0.35); border-color:var(--brass); }
+  .toggle .knob{
+    position:absolute; top:2px; left:2px;
+    width:18px; height:18px; border-radius:50%;
+    background:var(--text);
+    transition:left 0.18s ease;
+  }
+  .toggle.on .knob{ left:22px; background:var(--brass-bright); }
+  .panel-actions{
+    display:flex; gap:10px; margin-top:14px;
+  }
+  .panel-actions .btn{ flex:1; text-align:center; padding:10px; font-size:12.5px; }
+  .panel-header{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:14px;
+  }
+  .panel-header .eyebrow{ opacity:0.9; }
+  .count-pill{
+    font-size:11px; color:var(--text-dim);
+    border:1px solid var(--line); border-radius:999px;
+    padding:3px 10px;
+  }
+
+  /* ---------- lightbox ---------- */
+  #lightbox{
+    position:fixed; inset:0; z-index:20;
+    background:rgba(4,3,8,0.92);
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; pointer-events:none;
+    transition:opacity 0.25s ease;
+  }
+  #lightbox.open{ opacity:1; pointer-events:auto; }
+  #lightbox img{
+    max-width:88vw; max-height:78vh;
+    border-radius:8px;
+    border:2px solid var(--brass);
+    box-shadow:0 0 60px rgba(125,107,176,0.35);
+  }
+  #lightbox .close{
+    position:absolute; top:20px; right:20px;
+    width:38px; height:38px; border-radius:50%;
+    background:var(--panel); border:1px solid var(--line);
+    color:var(--text); font-size:18px;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  ::-webkit-scrollbar{ width:5px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stars"></canvas>
+
+  <div id="title-block">
+    <span class="eyebrow">Interactive Exhibit</span>
+    <h1>Gallery Dome</h1>
+  </div>
+
+  <div id="stage">
+    <div id="world"></div>
+  </div>
+
+  <div id="empty-state">
+    <div class="ring">✦</div>
+    <p>Your dome is empty. Add photos and watch them take their place on the exhibit.</p>
+    <button class="btn" id="emptyUploadBtn">Add photos</button>
+  </div>
+
+  <div id="panel-toggle">⚙</div>
+
+  <div id="panel" class="collapsed">
+    <div class="panel-header">
+      <span class="eyebrow">Exhibit Controls</span>
+      <span class="count-pill" id="countPill">0 photos</span>
+    </div>
+
+    <div class="panel-row">
+      <span class="field-label">Pattern</span>
+      <select id="patternSelect">
+        <option value="sphere">Full sphere</option>
+        <option value="dome" selected>Dome</option>
+        <option value="spiral">Spiral</option>
+        <option value="ring">Ring</option>
+        <option value="wall">Curved wall</option>
+      </select>
+    </div>
+
+    <div class="panel-row">
+      <span class="field-label">Speed</span>
+      <input type="range" id="speedRange" min="-60" max="60" value="14" step="1">
+      <span class="field-value" id="speedValue">14</span>
+    </div>
+
+    <div class="panel-row">
+      <span class="field-label">Photo size</span>
+      <input type="range" id="sizeRange" min="60" max="200" value="110" step="2">
+      <span class="field-value" id="sizeValue">110</span>
+    </div>
+
+    <div class="panel-row">
+      <span class="field-label">Spread</span>
+      <input type="range" id="spreadRange" min="60" max="180" value="100" step="2">
+      <span class="field-value" id="spreadValue">100</span>
+    </div>
+
+    <div class="panel-row">
+      <span class="field-label">Auto-rotate</span>
+      <div class="toggle on" id="autoToggle"><div class="knob"></div></div>
+    </div>
+
+    <div class="panel-actions">
+      <button class="btn" id="uploadBtn">Add photos</button>
+      <button class="btn secondary" id="clearBtn">Clear all</button>
+    </div>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*" multiple hidden>
+
+  <div id="lightbox">
+    <div class="close" id="lightboxClose">✕</div>
+    <img id="lightboxImg" src="" alt="">
+  </div>
+</div>
+
+<script>
+(function(){
+  const world = document.getElementById('world');
+  const stage = document.getElementById('stage');
+  const fileInput = document.getElementById('fileInput');
+  const emptyState = document.getElementById('empty-state');
+  const panel = document.getElementById('panel');
+  const panelToggle = document.getElementById('panel-toggle');
+  const countPill = document.getElementById('countPill');
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImg = document.getElementById('lightboxImg');
+
+  const state = {
+    photos: [],        // {id, src}
+    pattern: 'dome',
+    speed: 14,          // deg / sec
+    size: 110,
+    spread: 100,         // percentage multiplier on base radius
+    autoRotate: true,
+    rotY: 0,
+    rotX: -8,
+  };
+
+  let isDragging = false;
+  let dragMoved = 0;
+  let lastPX = 0, lastPY = 0;
+  let activePointerId = null;
+  let elements = []; // {el, wrapper}
+
+  const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)); // radians
+
+  function baseRadius(n){
+    const sizeFactor = state.size * 0.9;
+    const countFactor = Math.sqrt(Math.max(n,1)) * 34;
+    return (sizeFactor + countFactor) * (state.spread / 100);
+  }
+
+  function computeLayout(){
+    const n = state.photos.length;
+    const R = baseRadius(n);
+    const positions = [];
+    if(n === 0) return positions;
+
+    if(state.pattern === 'sphere'){
+      for(let i=0;i<n;i++){
+        const y = n === 1 ? 0 : 1 - (i/(n-1))*2;
+        const lat = Math.asin(Math.max(-1,Math.min(1,y))) * 180/Math.PI;
+        const lon = (GOLDEN_ANGLE * i) * 180/Math.PI;
+        positions.push({lon, lat:-lat, ty:0, R});
+      }
+    } else if(state.pattern === 'dome'){
+      for(let i=0;i<n;i++){
+        const t = n === 1 ? 0 : i/(n-1);
+        const y = 1 - t; // 1 -> 0 (top to horizon)
+        const lat = Math.asin(Math.max(-1,Math.min(1,y))) * 180/Math.PI;
+        const lon = (GOLDEN_ANGLE * i) * 180/Math.PI;
+        positions.push({lon, lat:-lat, ty:0, R});
+      }
+    } else if(state.pattern === 'spiral'){
+      const turns = Math.max(2, Math.min(5, Math.ceil(n/6)));
+      for(let i=0;i<n;i++){
+        const t = n === 1 ? 0 : i/(n-1);
+        const lon = t * 360 * turns;
+        const lat = 78 - t * 156;
+        positions.push({lon, lat, ty:0, R});
+      }
+    } else if(state.pattern === 'ring'){
+      for(let i=0;i<n;i++){
+        const lon = (i/n) * 360;
+        positions.push({lon, lat:0, ty:0, R});
+      }
+    } else if(state.pattern === 'wall'){
+      const cols = Math.max(1, Math.ceil(Math.sqrt(n * 1.6)));
+      const rows = Math.ceil(n/cols);
+      const spacing = state.size * 1.12;
+      for(let i=0;i<n;i++){
+        const col = i % cols;
+        const row = Math.floor(i/cols);
+        const lon = ((col - (cols-1)/2) / cols) * 220;
+        const ty = (row - (rows-1)/2) * spacing;
+        positions.push({lon, lat:0, ty, R: R*0.85});
+      }
+    }
+    return positions;
+  }
+
+  function rebuild(){
+    world.innerHTML = '';
+    elements = [];
+    const positions = computeLayout();
+    const s = state.size;
+
+    state.photos.forEach((photo, i) => {
+      const pos = positions[i];
+      const wrapper = document.createElement('div');
+      wrapper.className = 'photo';
+      wrapper.style.width = s + 'px';
+      wrapper.style.height = s + 'px';
+      wrapper.style.marginLeft = (-s/2) + 'px';
+      wrapper.style.marginTop = (-s/2) + 'px';
+      wrapper.style.transform =
+        `rotateY(${pos.lon}deg) rotateX(${pos.lat}deg) translateZ(${pos.R}px) translateY(${pos.ty}px)`;
+
+      const img = document.createElement('img');
+      img.src = photo.src;
+      img.draggable = false;
+      wrapper.appendChild(img);
+
+      const removeBtn = document.createElement('div');
+      removeBtn.className = 'remove-btn';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('pointerdown', e => e.stopPropagation());
+      removeBtn.addEventListener('click', e => {
+        e.stopPropagation();
+        state.photos = state.photos.filter(p => p.id !== photo.id);
+        rebuild();
+        syncUI();
+      });
+      wrapper.appendChild(removeBtn);
+
+      wrapper.addEventListener('click', () => {
+        if(dragMoved > 6) return;
+        lightboxImg.src = photo.src;
+        lightbox.classList.add('open');
+      });
+
+      world.appendChild(wrapper);
+      elements.push(wrapper);
+    });
+
+    syncUI();
+  }
+
+  function syncUI(){
+    const n = state.photos.length;
+    emptyState.classList.toggle('hidden', n > 0);
+    countPill.textContent = n + (n === 1 ? ' photo' : ' photos');
+  }
+
+  function applyRotation(){
+    world.style.transform = `rotateX(${state.rotX}deg) rotateY(${state.rotY}deg)`;
+  }
+
+  // ---------- animation loop ----------
+  let lastTime = null;
+  function tick(ts){
+    if(lastTime === null) lastTime = ts;
+    const dt = (ts - lastTime) / 1000;
+    lastTime = ts;
+    if(state.autoRotate && !isDragging){
+      state.rotY += state.speed * dt;
+    }
+    applyRotation();
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // ---------- drag to rotate manually ----------
+  stage.addEventListener('pointerdown', e => {
+    if(e.target.closest('.remove-btn')) return;
+    isDragging = true;
+    dragMoved = 0;
+    lastPX = e.clientX; lastPY = e.clientY;
+    activePointerId = e.pointerId;
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add('dragging');
+  });
+  stage.addEventListener('pointermove', e => {
+    if(!isDragging || e.pointerId !== activePointerId) return;
+    const dx = e.clientX - lastPX;
+    const dy = e.clientY - lastPY;
+    dragMoved += Math.abs(dx) + Math.abs(dy);
+    state.rotY += dx * 0.35;
+    state.rotX -= dy * 0.25;
+    state.rotX = Math.max(-85, Math.min(85, state.rotX));
+    lastPX = e.clientX; lastPY = e.clientY;
+  });
+  function endDrag(e){
+    if(!isDragging) return;
+    isDragging = false;
+    stage.classList.remove('dragging');
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('pointerleave', e => { if(e.pointerId === activePointerId) endDrag(e); });
+
+  // ---------- uploads ----------
+  function openFilePicker(){ fileInput.click(); }
+  document.getElementById('uploadBtn').addEventListener('click', openFilePicker);
+  document.getElementById('emptyUploadBtn').addEventListener('click', openFilePicker);
+
+  fileInput.addEventListener('change', () => {
+    const files = Array.from(fileInput.files || []);
+    if(files.length === 0) return;
+    let remaining = files.length;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = e => {
+        state.photos.push({id: 'p' + Date.now() + Math.random().toString(36).slice(2), src: e.target.result});
+        remaining--;
+        if(remaining === 0) rebuild();
+      };
+      reader.readAsDataURL(file);
+    });
+    fileInput.value = '';
+  });
+
+  document.getElementById('clearBtn').addEventListener('click', () => {
+    state.photos = [];
+    rebuild();
+  });
+
+  // ---------- panel controls ----------
+  panelToggle.addEventListener('click', () => panel.classList.toggle('collapsed'));
+
+  document.getElementById('patternSelect').addEventListener('change', e => {
+    state.pattern = e.target.value;
+    rebuild();
+  });
+
+  const speedRange = document.getElementById('speedRange');
+  const speedValue = document.getElementById('speedValue');
+  speedRange.addEventListener('input', e => {
+    state.speed = parseFloat(e.target.value);
+    speedValue.textContent = state.speed;
+  });
+
+  const sizeRange = document.getElementById('sizeRange');
+  const sizeValue = document.getElementById('sizeValue');
+  sizeRange.addEventListener('input', e => {
+    state.size = parseFloat(e.target.value);
+    sizeValue.textContent = state.size;
+    rebuild();
+  });
+
+  const spreadRange = document.getElementById('spreadRange');
+  const spreadValue = document.getElementById('spreadValue');
+  spreadRange.addEventListener('input', e => {
+    state.spread = parseFloat(e.target.value);
+    spreadValue.textContent = state.spread;
+    rebuild();
+  });
+
+  const autoToggle = document.getElementById('autoToggle');
+  autoToggle.addEventListener('click', () => {
+    state.autoRotate = !state.autoRotate;
+    autoToggle.classList.toggle('on', state.autoRotate);
+  });
+
+  // ---------- lightbox ----------
+  document.getElementById('lightboxClose').addEventListener('click', () => {
+    lightbox.classList.remove('open');
+  });
+  lightbox.addEventListener('click', e => {
+    if(e.target === lightbox) lightbox.classList.remove('open');
+  });
+
+  // ---------- starfield background ----------
+  const canvas = document.getElementById('stars');
+  const ctx = canvas.getContext('2d');
+  function resizeCanvas(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    drawStars();
+  }
+  function drawStars(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = 'rgba(233,225,255,0.8)';
+    const count = Math.floor((canvas.width * canvas.height) / 9000);
+    let seed = 42;
+    function rand(){ seed = (seed * 9301 + 49297) % 233280; return seed/233280; }
+    for(let i=0;i<count;i++){
+      const x = rand() * canvas.width;
+      const y = rand() * canvas.height;
+      const r = rand() * 1.1 + 0.2;
+      ctx.globalAlpha = rand() * 0.6 + 0.15;
+      ctx.beginPath();
+      ctx.arc(x,y,r,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  syncUI();
+})();
+</script>
+</body>
+</html>
